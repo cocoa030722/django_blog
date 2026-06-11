@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block article %}
+    <!-- resource_monitor.html -->
+    <h1>Server Resource Monitor</h1>
+    <p>CPU Usage: {{ cpu_usage }}%</p>
+    <p>Total Memory: {{ memory_total|filesizeformat }}</p>
+    <p>Available Memory: {{ memory_available|filesizeformat }}</p>
+    <p>Total Disk Space: {{ disk_total|filesizeformat }}</p>
+    <p>Used Disk Space: {{ disk_used|filesizeformat }}</p>
+    <p>Free Disk Space: {{ disk_free|filesizeformat }}</p>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block external_head %}
+    <meta name="description" content="일정, 계획 등을 트리로 정리하는 사이트입니다.">
+    <meta name="keywords" content="To-Do, Tree, Focus Tree">
+{% endblock %}
+
+{% block article %}
+    <button type="button" id="create-tree-button" class="btn btn-primary">트리 생성</button>
+    <ol>
+    {% for tree in trees %}
+        <li><a href="{% url 'focus_tree:tree_editer' tree.id %}">{{ tree.name }}</a></li>
+    {% empty %}
+        <li>nothing here</li>
+    {% endfor %}
+    </ol>
+    {% include "focus_tree/modal.html" %}
+    <script>
+        const createTreeBtn = document.getElementById('create-tree-button');
+        function showModal() {
+            const myModal = new bootstrap.Modal(document.getElementById('treeCreateModal'));
+            myModal.show();
+        }
+        createTreeBtn.addEventListener('click', showModal);
+    </script>
+{% endblock %}

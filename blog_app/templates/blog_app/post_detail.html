@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block article %}
+  <a class="btn btn-primary" href="{% url 'blog_app:create_post' %}" role="button">새 글</a>
+  <a class="btn btn-primary" href="{% url 'blog_app:update_post' post.slug %}" role="button">글 수정</a>
+  <a class="btn btn-primary" href="{% url 'blog_app:delete_post' post.id %}" role="button">글 삭제</a>
+  </button>
+  <h3>{{ post.title }}</h3>
+  <h4>작성자:{{ post.author }}</h4>
+  <p>{{ post.main_text }}</p>
+  {% for content in contents %}
+    {% if content.content_type == 'text' %}
+      <p>{{ content.text }}</p>
+    {% elif content.content_type == 'image' %}
+      <p><img src="{{ content.image.url }}" alt="."></p>
+    {% elif content.content_type == 'youtube' %}
+      <p><iframe
+          width="320"
+          height="360"
+          frameBorder="0"
+          allow="autoplay; encrypted-media"
+          src="{{ content.text }}"
+          sandbox="allow-scripts allow-same-origin"
+          allowfullscreen>
+      </iframe></p>
+    {% endif %}
+  {% endfor %}
+  <p>이 글은 {{ post.id }}번째 글입니다</p>
+
+{% endblock %}

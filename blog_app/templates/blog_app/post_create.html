@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block article %}
+    <h1>{{ post.title }}</h1>
+    
+    {% for content in contents %}
+        {% if content.content_type == 'text' %}
+            <p>{{ content.text }}</p>
+        {% elif content.content_type == 'image' %}
+            <img src="{{ content.image.url }}" alt="">
+        {% endif %}
+    {% endfor %}
+
+    <form method="POST" enctype="multipart/form-data" id="postForm">
+    {% csrf_token %}
+    {{ post_form.as_p }}
+    <div id="contents">
+        <div class="content-item">
+    <label>Content Type:</label>
+    <select name="content_type" class="content-type-select">
+        <option value="text">Text</option>
+        <option value="image">Image</option>
+        <option value="youtube">Youtube</option>
+    </select>
+    <div class="content-fields">
+        <div class="text-fields">
+            <label>Text:</label>
+            <textarea name="text" style="width:100%;height:150px;"></textarea>
+        </div>
+        <div class="image-fields" style="display:none;">
+            <label>Image:</label>
+            <input type="file" name="image">
+        </div>
+        <div class="youtube-fields" style="display:none;">
+            <label>Youtube URL:</label>
+            <input type="url" name="youtube" placeholder="Enter YouTube URL">
+        </div>
+    </div>
+    <input type="hidden" name="order" class="content-order" value="0">
+</div>
+    </div>
+    <button type="button" id="add-content" class="btn btn-secondary">Add Content</button>
+    <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+
+    
+
+    <script>
+document.querySelectorAll('.content-type-select').forEach(select => {
+    select.addEventListener('change', function() {
+        const contentItem = this.closest('.content-item');
+        const textFields = contentItem.querySelector('.text-fields');
+        const imageFields = contentItem.querySelector('.image-fields');
+        const youtubeFields = contentItem.querySelector('.youtube-fields');
+
+        textFields.style.display = 'none';
+        imageFields.style.display = 'none';
+        youtubeFields.style.display = 'none';
+
+        if (this.value === 'text' || this.value === 'youtube') {
+            textFields.style.display = 'block';
+        } 
+        if (this.value === 'image') {
+            imageFields.style.display = 'block';
+        }
+        if (this.value === 'youtube') {
+            youtubeFields.style.display = 'block';
+        }
+    });
+});
+
+// Code for dynamically adding new content blocks
+document.getElementById('add-content').addEventListener('click', function() {
+    const contentsDiv = document.getElementById('contents');
+    const newContent = contentsDiv.children[0].cloneNode(true);
+    const orderInputs = contentsDiv.getElementsByClassName('content-order');
+    newContent.querySelector('.content-order').value = orderInputs.length;
+
+    // Reset new content block
+    newContent.querySelector('.text-fields').style.display = 'block';
+    newContent.querySelector('.image-fields').style.display = 'none';
+    newContent.querySelector('.youtube-fields').style.display = 'none';
+    newContent.querySelector('.content-type-select').value = 'text';
+    newContent.querySelector('textarea[name="text"]').value = '';
+    newContent.querySelector('input[name="image"]').value = '';
+    newContent.querySelector('input[name="youtube"]').value = '';
+
+    contentsDiv.appendChild(newContent);
+});
+    </script>
+{% endblock %}

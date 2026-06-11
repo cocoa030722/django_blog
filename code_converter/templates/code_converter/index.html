@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block external_head %}
+    <meta name="description" content="chatgpt api를 이용해 코딩을 보조하는 사이트입니다.">
+    <meta name="keywords" content="AI, ChatGpt, Coding">
+{% endblock %}
+
+
+{% block article %}
+    <h1>Code Converter</h1>
+
+    <ul>
+        <li><a href="{% url 'code_converter:convert_code' %}">convert code</a></li>
+        <li><a href="{% url 'code_converter:auto_test' %}">auto test</a></li>
+        <li><a href="{% url 'code_converter:auto_project' %}">auto project</a></li>
+    </ul>
+{% endblock %}
+

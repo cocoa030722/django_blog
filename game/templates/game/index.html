@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block external_head %}
+    <meta name="description" content="웹게임 사이트입니다.">
+    <meta name="keywords" content="Game, Play">
+{% endblock %}
+
+{% block article %}
+    <a class="btn btn-primary" role="button" href="{% url 'game:create_game' %}">create_game</a>
+    <a href="{% url 'game:socket_test' %}">socket_test</a>
+    {% for game in main_user %}
+        <p><a href="{% url 'game:sub_user_choice' game.pk %}">join game:{{ game.owner }}</a></p>
+    {% endfor %}
+{% endblock %}
+
+<!-- <a href="{% url 'game:sub_user_choice' %}">sub</a> -->

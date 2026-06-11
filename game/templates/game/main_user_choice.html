@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block article %}
+    <h1>Choose Rock, Paper, or Scissors</h1>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" name="choice" value="rock">Rock</button>
+        <button type="submit" name="choice" value="paper">Paper</button>
+        <button type="submit" name="choice" value="scissors">Scissors</button>
+    </form>
+{% endblock %}

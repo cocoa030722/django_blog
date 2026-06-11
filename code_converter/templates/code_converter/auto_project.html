@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block external_head %}
+    <link rel="stylesheet" href="{% static 'code_converter/style.css' %}">
+{% endblock %}
+
+
+{% block article %}
+    <h1>자동으로 프로젝트 만들기</h1>
+    <h2>만들 프로젝트, 사용할 프레임워크를 입력하면 자동으로 프로젝트를 만드는 사이트입니다.</h2>
+    <form id="projectForm" method="post">
+        {% csrf_token %}
+        <label for="inputFramework">Input Framework: </label>
+        <input type="text" id="inputFramework" name="inputFramework" required />
+        
+        <textarea id="inputProject" name="inputProject" placeholder="Enter your project here..."></textarea>
+
+        <button type="submit">Convert</button>
+    </form>
+                
+    <p id="todoList">{{ totalOutput }}</p>
+    <p id="cleanedList">{{ cleaned_list }}</p>
+    <ol>
+    {% for part in actual_part %}
+        <li>{{ part|linebreaksbr }}</li>
+    {% endfor %}
+    </ol>
+{% endblock %}

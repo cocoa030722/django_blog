@@ -1,0 +1,202 @@
+<!-- workspace의 공간 문제로 인해 부득이하게 통일 템플릿을 쓰지 않고 분리함 -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Memo</title>
+  <style>
+    #workspace {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden; /* 스크롤바 감춤 */
+      position: relative;
+      cursor: grab;
+      background-color:gray;
+      white-space: nowrap;
+    }
+
+    #content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    #svg {
+      position: absolute;
+      top: -1000px;
+      left: -1000px;
+      z-index: 1;
+      pointer-events: none; /* SVG 요소 클릭 비활성화 */
+    }
+    
+    .node {
+      cursor: grab;
+      background-color:white;
+      position: absolute;
+      user-drag : auto;
+    }
+
+    .handle {
+        width: 10px;
+        height: 10px;
+        background-color: red;
+        position: absolute;
+        border-radius: 50%;
+        display: none;
+    }
+
+    .handle.top { top: -5px; left: 50%; transform: translateX(-50%); }
+    .handle.right { top: 50%; right: -5px; transform: translateY(-50%); }
+    .handle.bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
+    .handle.left { top: 50%; left: -5px; transform: translateY(-50%); }
+
+    .custom-grid-item {
+      border: 2px solid #000; /* 테두리 색상 */
+      background-color: #f0f0f0; /* 배경색 */
+      padding: 10px; /* 패딩 */
+      text-align: center; /* 텍스트 정렬 */
+    }
+    
+  </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body>
+  {% load static %}
+  {% include "header.html" %}
+
+        <article class="blog-post">
+          <div id="workspace">
+            <div class="hstack gap-2">
+              <div class="p-2">
+                <button id="request-button" type="button" class="btn btn-primary">
+                  save all tree
+                </button>
+              </div>
+              <div class="p-2">
+                <button id="delete-edge-button" type="button" class="btn btn-primary">
+                  delete all edge
+                </button>
+              </div>
+              <div class="p-2">
+                <button id="delete-node-button" type="button" class="btn btn-primary">
+                  delete all node
+                </button>
+              </div>
+              <div class="p-2">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exampleModal" data-bs-whatever="@mdo">
+                  Create new node
+                </button>
+              </div>
+              <div class="p-2">
+                <button id="tree-serialization-button" type="button" class="btn btn-primary">
+                  treeSerialization
+                </button>
+              </div>
+            </div>
+            
+            {% include "focus_tree/modal_editer.html" %}
+            
+            <div id="content">
+              <!-- 트리 내의 노드들이 동적으로 생성되는 공간 -->
+            </div>
+          </div>
+        </article>
+  {% csrf_token %}
+  <script>
+    //인라인 코드는 전역 공간과 같이 사용
+    const None=null;//python의 none에 대응함
+    const csrftoken = '{{ csrf_token }}';
+    
+    let nodeInfos = {{ nodes|safe }};
+    console.log(nodeInfos);
+    let existEdges = {};
+    let tmpEdgeChanges = [];
+
+    class Node{
+      constructor({id, image, name, main_text, position_x, position_y, children}) {
+        this.id = id;
+        this.image = image;
+        this.name = name;
+        this.mainText = main_text;
+        this.positionX = position_x;
+        this.positionY = position_y;
+        this.children = children;
+      }
+      
+      addChildren(value){
+        this.children.push(value);
+      }
+      setPosition(x, y){
+        this.positionX = x;
+        this.positionY = y;
+      }
+    }
+    
+    let existNodes = {}
+    for (const node in nodeInfos) {
+        existNodes[node] = new Node(nodeInfos[node]);
+    }
+    console.log(existNodes);
+    const content = document.getElementById('content');
+    //트리 초기화 시 svg 까지 다 지우면 안됨(캔버스 자체가 사라짐)
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('id', 'svg');
+    svg.setAttribute('width', 2000000); // x, y만 안 건드리면 안정하다?
+    svg.setAttribute('height', 2000000);
+    content.appendChild(svg);
+    
+    const centerCorrectionValue = 1000;// 왜 1000px를 보정해야 하는지 tq 모르겠음
+    svg.setAttribute('viewBox', `-1000000 -1000000 2000000 2000000`);
+    svg.style.transform = `translate(${-1000000+centerCorrectionValue}px, ${-1000000+centerCorrectionValue}px)`;
+    
+    function drawLine(x1, y1, x2, y2) {
+      const lineElement = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      svg.appendChild(lineElement);
+      lineElement.setAttribute('x1', x1);
+      lineElement.setAttribute('y1', y1);
+      lineElement.setAttribute('x2', x2);
+      lineElement.setAttribute('y2', y2);
+      lineElement.setAttribute('stroke', 'black');
+      lineElement.setAttribute('stroke-width', '2');
+    }
+    
+    // 현재 페이지의 전체 URL을 가져옵니다.
+    const currentUrl = window.location.href;
+
+    // URL을 '/'로 분할하여 배열로 저장합니다.
+    const parts = currentUrl.split('/');
+
+    // 배열의 마지막 요소(문자열로 되어있는 숫자)를 가져옵니다.
+    const lastSegment = parts[parts.length - 1];
+
+    // 만약 숫자가 문자열로 되어 있다면 정수로 변환합니다.
+    const treeId = parseInt(lastSegment, 10);
+
+    console.log(treeId);
+    const deleteNodeBtn = document.getElementById('delete-node-button');
+    function resetNode() {
+        console.log('resetNode')
+        fetch(`/focus_tree/endpoint/delete-all-node/${treeId}`)
+    }
+    deleteNodeBtn.addEventListener('click', resetNode);
+    
+    const deleteEdgeBtn = document.getElementById('delete-edge-button');
+    function resetEdge() {
+        console.log('resetEdge')
+        fetch(`/focus_tree/endpoint/delete-all-edge/${treeId}`)
+    }
+    deleteEdgeBtn.addEventListener('click', resetEdge);
+    </script>
+
+    <script src="{% static 'focus_tree/js/node_click.js' %}"></script>
+    <script src="{% static 'focus_tree/js/node_create.js' %}"></script>
+    <script src="{% static 'focus_tree/js/node_drag.js' %}"></script>
+  
+    <script src="{% static 'focus_tree/js/tree_drag.js' %}"></script>
+    <script src="{% static 'focus_tree/js/tree_render.js' %}"></script>
+    <!-- ajax 코드 -->
+    <script src="{% static 'focus_tree/js/ajax.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  </body>
+</body>
+</html>

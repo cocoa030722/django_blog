@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block article %}
+    <h1>Choose Rock, Paper, or Scissors</h1>
+    <!-- onclick="delayedSubmit(event)" -->
+    <form method="post" id="myForm" onsubmit="event.preventDefault();">
+        {% csrf_token %}
+        <button type="submit" name="choice" class="choice" value="rock" data-value="rock">Rock</button>
+        <button type="submit" name="choice" class="choice" value="paper" data-value="paper">Paper</button>
+        <button type="submit" name="choice" class="choice" value="scissors" data-value="scissors">Scissors</button>
+    </form>
+    <div id="tsunomaki"></div>
+    <div id="result"></div>
+
+    <script>
+        const countdownElement = document.getElementById('countdown');
+        const tsunomaki = document.getElementById('tsunomaki');
+        const result = document.getElementById('result');
+
+        
+        const choices = document.querySelectorAll('.choice'); // 모든 선택지
+        choices.forEach((choice) => {
+            choice.addEventListener('click', async(event) => {
+                await intervalAnimation();
+                await sendChoice(choice.value);
+            });
+        });
+
+        async function intervalAnimation(){
+            try{
+                event.preventDefault();
+                const data = {
+                    'mainPk':mainPk
+                };
+                const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                fetch(`/game/api/get-main`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin',
+                }).then(function(response) {
+                    return response.json();
+                }).then(async function(data) {
+                    console.log(data); // this will be a json
+                    const value = data.mainUserChoice;
+
+                    const iframe = document.createElement('iframe');
+                    // Set the iframe attributes for the YouTube video
+                    iframe.width = "640"; 
+                    iframe.height = "360"; 
+                    iframe.frameBorder = "0";
+                    iframe.allow = "autoplay; encrypted-media";
+                    
+                    if(value === "rock"){
+                        iframe.src = "https://www.youtube.com/embed/jvO3zDBmoW0?autoplay=1&mute=1&start=1";
+                    }else if(value === "paper"){
+                        iframe.src = "https://www.youtube.com/embed/jvO3zDBmoW0?autoplay=1&mute=1&start=22";
+                    }else if(value === "scissors"){
+                        iframe.src = "https://www.youtube.com/embed/jvO3zDBmoW0?autoplay=1&mute=1&start=44";
+                    }
+                    tsunomaki.appendChild(iframe);
+                }).catch ((error) => {
+                    console.log(error);
+                });
+
+            } catch (error) {
+                console.error("실패:", error);
+            }
+            
+        }
+        const mainPk = {{ main_pk|safe }};
+        async function sendChoice(value){
+            try{
+                event.preventDefault();
+                const data = {
+                    'mainPk':mainPk, 
+                    'subChoice':value
+                };
+                const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                fetch(`/game/ajax/send-choice`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: JSON.stringify(data),
+                    credentials: 'same-origin',
+                }).then(function(response) {
+                    return response.json();
+                }).then(async function(data) {
+                    console.log(data); // this will be a string
+                    await new Promise(resolve => setTimeout(resolve, 18000)); // 결과 출력 지연
+
+                    const gameResult = document.createElement('h1');
+                    gameResult.innerText = `게임 결과: ${ data.gameResult }`
+                    const mainChoice = document.createElement('p');
+                    mainChoice.innerText = `상대의 선택: ${ data.mainUserChoice }`
+                    const subChoice = document.createElement('p');
+                    subChoice.innerText = `당신의 선택: ${ data.subUserChoice }`
+                    
+                    result.appendChild(gameResult);
+                    result.appendChild(mainChoice);
+                    result.appendChild(subChoice);
+                }).catch ((error) => {
+                    console.log(error);
+                });
+
+            } catch (error) {
+                console.error("실패:", error);
+            }
+        }
+    </script>
+{% endblock %}

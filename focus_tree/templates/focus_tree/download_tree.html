@@ -1,0 +1,492 @@
+<!-- 트리만 담을 목적으로 간소화된 템플릿-->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Memo</title>
+  <style>
+    #workspace {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden; /* 스크롤바 감춤 */
+      position: relative;
+      cursor: grab;
+      background-color:gray;
+      white-space: nowrap;
+    }
+
+    #content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    #svg {
+      position: absolute;
+      top: -1000px;
+      left: -1000px;
+      z-index: 1;
+      pointer-events: none; /* SVG 요소 클릭 비활성화 */
+    }
+
+    .node {
+      cursor: grab;
+      background-color:white;
+      position: absolute;
+      user-drag : auto;
+    }
+
+    .handle {
+        width: 10px;
+        height: 10px;
+        background-color: red;
+        position: absolute;
+        border-radius: 50%;
+        display: none;
+    }
+
+    .handle.top { top: -5px; left: 50%; transform: translateX(-50%); }
+    .handle.right { top: 50%; right: -5px; transform: translateY(-50%); }
+    .handle.bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
+    .handle.left { top: 50%; left: -5px; transform: translateY(-50%); }
+
+    .custom-grid-item {
+      border: 2px solid #000; /* 테두리 색상 */
+      background-color: #f0f0f0; /* 배경색 */
+      padding: 10px; /* 패딩 */
+      text-align: center; /* 텍스트 정렬 */
+    }
+
+  </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body>
+    {% load static %}
+    <div id="workspace">
+      
+        <!-- 노드 세부사항 모달에 대한 정의:시작 -->
+        <div class="modal fade" id="nodeDetailModal" tabindex="-1" aria-labelledby="nodeDetailModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h1 class="modal-title fs-5" id="nodeDetailModalLabel">Node Details</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <p>id:</p>
+                <p id="nodeDetailsText"></p>
+
+                <div class="container text-center">
+                  <div class="row">
+                    <div class="col-12">
+                      name:<div id="nodeNameText"></div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-3">
+                      image:<div id="nodeImage"></div>
+                    </div>
+                    <div class="col-9">
+                      placeholder
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-12">
+                      mainText:<div id="nodeMainText"></div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 노드 세부사항 모달에 대한 정의:끝 -->
+
+        <div id="content">
+          <!-- 트리 내의 노드들이 동적으로 생성되는 공간 -->
+        </div>
+    </div>
+    <script>
+    //인라인 코드는 전역 공간과 같이 사용
+    const None=null;//python의 none에 대응함
+    const csrftoken = '{{ csrf_token }}';
+
+    let nodeInfos = {{ nodes|safe }};
+    console.log(nodeInfos);
+    let existEdges = {};
+    let tmpEdgeChanges = [];
+
+    class Node{
+      //여기서는 캐멜 케이스를 사용:TEMP
+      constructor({id, image, name, mainText, positionX, positionY, children}) {
+        this.id = id;
+        this.image = image;
+        this.name = name;
+        this.mainText = mainText;
+        this.positionX = positionX;
+        this.positionY = positionY;
+        this.children = children;
+      }
+
+      addChildren(value){
+        this.children.push(value);
+      }
+      setPosition(x, y){
+        this.positionX = x;
+        this.positionY = y;
+      }
+    }
+
+    let existNodes = {}
+    for (const node in nodeInfos) {
+        existNodes[node] = new Node(nodeInfos[node]);
+    }
+    console.log(existNodes);
+    const content = document.getElementById('content');
+    //트리 초기화 시 svg 까지 다 지우면 안됨(캔버스 자체가 사라짐)
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('id', 'svg');
+    svg.setAttribute('x', -10000);
+    svg.setAttribute('y', -10000);
+    svg.setAttribute('width', 20000); // 대충 적당히 큰 값으로 하드코딩
+    svg.setAttribute('height', 20000);
+    svg.setAttribute('viewBox', "-10000 -10000 20000 20000");
+    // svg는 유일해야 함-그 내부 요소는 여럿이어야 함
+    content.appendChild(svg);
+    function drawLine(x1, y1, x2, y2) {
+      const lineElement = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      svg.appendChild(lineElement);
+      lineElement.setAttribute('x1', x1);
+      lineElement.setAttribute('y1', y1);
+      lineElement.setAttribute('x2', x2);
+      lineElement.setAttribute('y2', y2);
+      lineElement.setAttribute('stroke', 'black');
+      lineElement.setAttribute('stroke-width', '2');
+    }
+    /* 다운로드된 페이지는 어떠한 백엔드 동작이 필요하지 않음
+    const deleteEdgeBtn = document.getElementById('delete-edge-button');
+
+    function resetEdge() {
+        console.log('resetEdge')
+        fetch('/focus_tree/endpoint/delete-all-relationship')
+    }
+
+    deleteEdgeBtn.addEventListener('click', resetEdge);
+    */
+    //node_click
+      function addAllNodeEvent(){
+          const node_click_nodes = document.querySelectorAll('.node'); // 모든 노드를 선택
+
+          node_click_nodes.forEach((node) => {
+              let clickTimer = null;
+              node.addEventListener('click', (event) => {
+                  if (clickTimer) {//더블클릭 케이스
+                      clearTimeout(clickTimer);
+                      clickTimer = null;
+                      handleDoubleClickNode(node);
+                  } else {//싱글클릭 케이스
+                      clickTimer = setTimeout(() => {
+                          node_click_nodes.forEach(n => n.classList.remove('selected'));
+                          node.classList.add('selected');
+                          handleSingleClickNode(node);
+                          clickTimer = null;
+                      }, 300);
+                  }
+              });
+          });
+      }
+
+      function handleSingleClickNode(node) {
+          console.log('handleSingleClickNode');
+          const handles = node.querySelectorAll('.handle');
+          if (handles.length === 0) {
+              createHandles(node);
+          } else {
+              handles.forEach(handle => handle.style.display = 'block');
+          }
+      }
+
+      function createHandles(node) {
+          const positions = ['top', 'right', 'bottom', 'left'];
+          positions.forEach(pos => {
+              const handle = document.createElement('div');
+              handle.classList.add('handle', pos);
+              handle.draggable = true;
+
+              handle.addEventListener('dragstart', handleDragStart);
+              handle.addEventListener('dragend', handleDragEnd);
+
+              node.appendChild(handle);
+              setTimeout(() => {
+                  handle.style.display = 'block';
+              }, 0);
+          });
+      }
+
+      let draggedHandle = null;
+
+      function handleDragStart(event) {
+          draggedHandle = event.target;
+          event.dataTransfer.setData('text/plain', '');
+      }
+
+      async function handleDragEnd(event) {
+          const targetNode = document.elementFromPoint(event.clientX, event.clientY);
+          if (targetNode && targetNode.classList.contains('node') && targetNode !== draggedHandle.parentNode) {
+              // if문의 기준이 너무 엄격(노드의 자식 요소에 드래그한 것은 인정하지 않음)->자신 또는 부모가 node일 때로 바꿔야 함
+              // Set parent/child relationship here
+              /* 
+              0.draggedHandle.parentNode -> targetNode를 연결하는 객체를 fetch로 생성
+              1.노드 재렌더링
+              */
+              const sendData = {
+                  'parent':draggedHandle.parentNode.dataset.id,
+                  'child':targetNode.dataset.id
+              };//부모 노드-자식 노드
+              console.log(`handleDragEnd:${sendData}`);
+              existNodes[draggedHandle.parentNode.dataset.id]["children"].push(targetNode.dataset.id);
+              tmpEdgeChanges.push(sendData); // 변화 내용을 배열에 저장
+              //await saveRelationship(sendData);// REF:ajax.js
+
+              console.log(`${draggedHandle.parentNode.dataset.id} is now parent of ${targetNode.dataset.id}`);
+              // Optionally, you can update DOM to reflect this relationship
+              reRenderTree()
+          }
+          resetHandles();
+      }
+
+      function resetHandles() {
+          document.querySelectorAll('.handle').forEach(handle => handle.style.display = 'none');
+          draggedHandle = null;
+      }
+
+      function handleDoubleClickNode(node) {
+          const nodeDetailsText = node.getAttribute("data-id"); // 호환성을 위해 임시로 남김
+          const currentNode = existNodes[node.dataset.id];
+          document.getElementById('nodeDetailsText').innerText = nodeDetailsText;
+          document.getElementById('nodeNameText').innerText = currentNode.name;
+          if(currentNode.image!=''){
+              document.getElementById('nodeImage').innerHTML = `
+              <img src="${currentNode.image}" width="64" height="64" alt="ppap">
+              `;
+          }else{
+              document.getElementById('nodeImage').innerHTML = `
+              <img src="https://via.placeholder.com/64x64" width="64" height="64" alt="sans">
+              `;
+          }
+
+          document.getElementById('nodeMainText').innerText = currentNode.main_text;
+
+          // 모달을 표시
+          const myModal = new bootstrap.Modal(document.getElementById('nodeDetailModal'));
+          myModal.show();
+      }
+
+      document.addEventListener('DOMContentLoaded', (event) => {
+          const parentElement = document.getElementById('nodeDetailModal');
+          const gridItems = parentElement.querySelectorAll('[class*="col-"]'); // 부트스트랩으로 정의한 모든 그리드 요소 찾기
+
+          gridItems.forEach(item => {
+              item.classList.add('custom-grid-item'); // 각 그리드 요소에 커스텀 클래스 추가
+          });
+      });
+      
+    ///node_create.js
+      function createNodeElement(node) {
+          const div = document.createElement('div');
+          div.className = 'node';
+          div.style.left = node.positionX + 'px';
+          div.style.top = node.positionY + 'px';
+          div.dataset.id = node.id;
+          div.draggable = true;
+
+          const image = createNodeImage(node);
+          div.appendChild(image);
+
+          const name = document.createElement('p');
+          name.className = 'nodeName';
+          name.innerText = node.name;
+          div.appendChild(name);
+
+          content.appendChild(div);
+      }
+
+      function createNodeImage(node) {
+          const image = document.createElement('img');
+          image.className = 'nodeImage';
+          if(node.image!=''){
+              image.src = node.image;
+              image.width = 64;
+              image.height = 64;
+              image.alt = "ppap";
+          }else{
+              image.src = "https://via.placeholder.com/64x64";
+              image.width = 64;
+              image.height = 64;
+              image.alt = "sans";
+          }
+          return image;
+      }
+    //node_drag.js
+      let node_startX=0, node_startY=0;//delta를 측정하는 데 이용
+      let node_currentX=0, node_currentY=0;//node의 현 위치
+      let dx=0, dy=0;
+
+      let activeNode=null;
+
+      content.addEventListener("dragstart", function(event) {
+        activeNode=null;
+        if (event.target.classList.contains('node')) {
+          activeNode = event.target;
+        }
+        if(activeNode !== null){
+          let topString = activeNode.style.top;
+          let leftString = activeNode.style.left;
+
+          let topInt = parseInt(topString||0, 10);
+          let leftInt = parseInt(leftString||0, 10);
+
+          node_currentX=leftInt;
+          node_currentY=topInt;
+
+          node_startX = event.clientX - node_currentX;
+          node_startY = event.clientY - node_currentY;
+        }
+
+      });
+
+      content.addEventListener("drag", function(event) {
+
+        if(event.clientX > 0){//드래그를 끝내기 직전의 event.clientX는 0이 됨->0 이상인 경우만 반영해야 함
+          dx = event.clientX - node_startX;
+        }
+        if(event.clientY > 0){
+          dy = event.clientY - node_startY;
+        }
+
+        if(activeNode !== null){
+          activeNode.style.left=(dx)+"px";
+          activeNode.style.top=(dy)+"px";
+          existNodes[activeNode.dataset.id].setPosition(dx, dy);
+        }
+        renderAllEdge()// REF:tree_render.js
+      });
+
+    //tree_drag.js
+      const workspace = document.getElementById('workspace');
+
+      let isDragging = false;
+      let startX=0, startY=0, currentX=0, currentY=0;
+
+      workspace.addEventListener('mousedown', function(event) {
+        if (event.button === 1) {//훨클릭
+          isDragging = true;
+          //현 위치 기록
+          startX = event.clientX - currentX;
+          startY = event.clientY - currentY;
+          console.log("횔클릭 시작 (x:"+startX+", y:"+startY+")")
+        }
+      });
+
+      workspace.addEventListener('mousemove', function(event) {
+        if (isDragging) {
+          //변화값을 계산
+          const dx = event.clientX - startX;
+          const dy = event.clientY - startY;
+
+          currentX = dx;
+          currentY = dy;
+
+          //변화값만큼 변화(누적된 변화?)
+          content.style.transform = `translate(${dx}px, ${dy}px)`;
+        }
+      });
+
+      workspace.addEventListener('mouseup', function(event) {
+        if (event.button === 1) {
+          isDragging = false;
+          console.log("횔클릭 종료")
+        }
+      });
+      
+    //tree_render.js
+      renderTree();
+
+      async function renderTree(){
+          //노드 자체의 렌더링
+          await renderAllNode(existNodes);
+          //노드 간 간선의 렌더링
+          await renderAllEdge();
+          //노드에 이벤트 연걸
+          addAllNodeEvent();// REF:node_create.js
+      }
+
+      async function renderAllNode(nodes){
+          return new Promise((resolve) => {
+
+              for (const node in nodes) {//in 루프는 (파이썬과 다르게) 키값만을 순화함->불러오눈 건 사용자 몫
+                  createNodeElement(existNodes[node]);// REF:node_create.js
+              }
+
+              console.log("Nodes rendered");
+              resolve();
+            });
+      }
+      async function renderAllEdge(){
+          //먼저 현존하는 모든 svg 내 요소를 지움
+          svg.innerHTML = "";
+
+          //모든 노드의 렌더링 이후에 실행되어야만 하는 로직
+          return new Promise((resolve) => {
+
+              const content = document.getElementById('content');
+              Array.from(content.children).forEach(node => {
+                  if (node.tagName.toLowerCase() === 'div') {
+                      const currentNode = existNodes[node.dataset.id];
+                      edgeForAllChlidren(node, currentNode.children);
+
+                      existEdges[node.dataset.id] = currentNode.children;
+
+                  }
+              });
+
+              console.log("Edges rendered");
+              resolve();
+          });
+      }
+
+      function edgeForAllChlidren(node, children) {
+          children.forEach(childId => {
+              const childNode = document.querySelector(`div[data-id="${childId}"]`);
+              renderEdge(node, childNode)
+          });
+      }
+
+      function renderEdge(div, child) {
+          const parentEdgeCenters = getDivEdgeCenters(div);
+          const childEdgeCenters = getDivEdgeCenters(child);
+          drawLine(parentEdgeCenters.bottomCenter.x, parentEdgeCenters.bottomCenter.y, childEdgeCenters.topCenter.x, childEdgeCenters.topCenter.y);
+      }
+
+
+
+      //최대한 건들지 말 것(아무튼 잘 동작함)
+      function getDivEdgeCenters(div) {
+          const divRect = div.getBoundingClientRect();
+          const contentRect = content.getBoundingClientRect();//상대좌표를 얻기 위한 작업
+
+          const topCenter = { x: (divRect.left-contentRect.left) + (divRect.width-contentRect.width) / 2, y: (divRect.top-contentRect.top) };
+          const rightCenter = { x: (divRect.right-contentRect.right), y: (divRect.top-contentRect.top) + (divRect.height-contentRect.height) / 2 };
+          const bottomCenter = { x: (divRect.left-contentRect.left) + (divRect.width-contentRect.width) / 2, y: (divRect.bottom-contentRect.bottom) };
+          const leftCenter = { x: (divRect.left-contentRect.left), y: (divRect.top-contentRect.top) + (divRect.height-contentRect.height) / 2 };
+          return { topCenter, rightCenter, bottomCenter, leftCenter };
+      }
+      
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>

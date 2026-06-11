@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block external_head %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="stylesheet" href="{% static 'code_converter/style.css' %}">
+{% endblock %}
+
+
+{% block article %}
+    <h1>Code Converter</h1>
+
+    <form id="convertForm" method="post">
+        {% csrf_token %}
+        <label for="inputLanguage">Input Language: </label>
+        <input type="text" id="inputLanguage" name="inputLanguage" required />
+
+        <textarea id="cCode" name="code" placeholder="Enter code here..."></textarea>
+
+        <label for="outputLanguage">Output Language: </label>
+        <input type="text" id="outputLanguage" name="outputLanguage" required />
+        <button type="submit">Convert</button>
+    </form>
+    <textarea id="outputCode" placeholder="Converted code will appear here..." readonly>{{ extractedCode }}</textarea>
+    <p id="extractedComment">{{ extractedComment }}</p>
+{% endblock %}
+

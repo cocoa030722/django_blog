@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block external_head %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="stylesheet" href="{% static 'code_converter/style.css' %}">
+{% endblock %}
+
+
+{% block article %}
+    <h1>자동으로 테스트 만들기</h1>
+    <h2>장고 코드를 넣으면 이에 대한 테스트 코드를 생성하는 사이트입니다.</h2>
+    <form id="convertForm" method="post">
+        {% csrf_token %}
+        <textarea id="cCode" name="code" placeholder="Enter C code here...">{{ inputCode }}</textarea>
+
+        <button type="submit">Convert</button>
+    </form>
+                
+    <!-- 유저가 수정할 수 없는 코드 텍스트 영역 -->
+    <textarea id="outputtCode" readonly>
+        {% for code in extractedCode %}
+            {{ code }}
+        {% endfor %}
+    </textarea>
+    <p id="totalOutput">{{ extractedComment }}</p>
+    <p style="visibility: hidden;">수백시간 안 쓰고도 테스트 만드니 우리의 생산성이 강물되네~</p>
+{% endblock %}

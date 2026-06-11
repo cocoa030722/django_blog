@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block article %}
+    <form id="convertForm" onsubmit="event.preventDefault(); sendMessage();">
+        {% csrf_token %}
+        <textarea name="opinion" id="outputLanguage" cols="30" rows="5" required></textarea>
+        <button type="submit">Send Delayed Message</button>
+    </form>
+    <div id="messages"></div>
+    <script>
+        //백엔드에 무슨 문제가 생기면 소켓은 즉시 닫힘
+        const socket = new WebSocket('wss://' + window.location.host + '/wss/some_path/');
+    
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            console.log("Received message: " + data.message);
+            document.querySelector('#messages').innerHTML += '<br>' + data.message;
+        };
+    
+        socket.onopen = function(e) {
+            console.log('WebSocket 연결 성공');
+            const payload = JSON.stringify({ message: 'Germany calling...'});
+            socket.send(payload);
+        };
+        socket.onclose = function(e) {
+            console.log('WebSocket 연결 종료');
+        };
+        socket.onerror = function(e) {
+            console.error('WebSocket 오류:', e);
+        };
+    
+        function sendMessage() {
+            const textarea = document.getElementById('outputLanguage');
+            const text = textarea.value; // Access the text
+            console.log("Text from textarea:", text);
+            
+            const message = text;
+            socket.send(JSON.stringify({
+                'message': message
+            }));
+        }
+    
+    </script>
+{% endblock %}
